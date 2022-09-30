@@ -1,0 +1,18 @@
+/bin/
+/project/target
+/project/project
+/target/
+
+.project
+.classpath
+.settings
+.idea
+*.iml
+/*.bsp/
+
+/test_run_dir/
+
+# Visual Studio Code
+.bloop/
+.metals/
+.vscode/
