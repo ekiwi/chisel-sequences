@@ -2,6 +2,7 @@ package sequences
 
 import chisel3._
 import chisel3.experimental.ChiselEnum
+import chisel3.util._
 
 object SequenceFsms {
   def compile(p: Property): PropertyIO = {
@@ -10,12 +11,36 @@ object SequenceFsms {
     }
   }
 
-  def compile(s: Sequence): SequenceIO = {
+  def assertAlways(p: Property, desc: String): Unit = {
+    val n = runtime(p)
+    val props = Seq.fill(n)(compile(p))
+    AssertAlwaysModule(props, desc)
+  }
+
+  private def compile(s: Sequence): SequenceIO = {
     s match {
       case SeqExpr(predicate) => SeqExprModule(predicate)
       case SeqConcat(s1, s2)  => SeqConcatModule(compile(s1), compile(s2))
     }
   }
+
+  /** calculates an upper bound for the property runtime in cycles */
+  private def runtime(p: Property): Int = {
+    p match {
+      case PropSeq(s) => runtime(s)
+    }
+  }
+
+  /** calculates an upper bound for the sequence runtime in cycles */
+  private def runtime(s: Sequence): Int = {
+    s match {
+      case SeqExpr(_)        => 1
+      case SeqOr(s1, s2)     => runtime(s1).max(runtime(s2))
+      case SeqFuse(s1, s2)   => runtime(s1) + runtime(s2) - 1
+      case SeqConcat(s1, s2) => runtime(s1) + runtime(s2)
+    }
+  }
+
 }
 
 object SeqRes extends ChiselEnum {
@@ -166,5 +191,56 @@ object AssertPropModule {
   def apply(p: PropertyIO, desc: String): Unit = {
     val mod = Module(new AssertPropModule(desc)).suggestName("assert_prop")
     mod.propertyIO <> p
+  }
+}
+
+object findFirstInactive {
+
+  /** return one-hot encoded list with the index of the first active reg turned on */
+  def apply(active: UInt): UInt = {
+    val activeList = active.asBools
+    val cases = activeList.reverse.zipWithIndex.map { case (a, i) =>
+      !a -> (1 << (activeList.length - i - 1)).U
+    }
+
+    MuxCase(1.U, cases)
+  }
+}
+
+class AssertAlwaysModule(n: Int, desc: String) extends Module {
+  import PropRes._
+
+  val props = IO(Vec(n, Flipped(new PropertyIO)))
+
+  val active = RegInit(0.U(n.W))
+
+  // pick a free property (as a one-hot)
+  val newProp = findFirstInactive(active)
+
+  // properties that are active in this cycle
+  val nowActive = active | newProp
+
+  // advance all active properties
+  props.zip(nowActive.asBools).foreach { case (prop, active) =>
+    prop.advance := active
+  }
+
+  // find out which properties will need to be run next cycle
+  val stillRunning = Cat(props.map(p => p.status === PropUndetermined)) // TODO: reverse?
+  active := stillRunning & nowActive
+
+  // none of the properties that we advance should be false
+  props.foreach { prop =>
+    when(prop.advance) {
+      // if the property returns false, this assertion fails
+      assert(prop.status =/= PropRes.PropFalse, desc)
+    }
+  }
+}
+
+object AssertAlwaysModule {
+  def apply(props: Seq[PropertyIO], desc: String): Unit = {
+    val mod = Module(new AssertAlwaysModule(props.length, desc))
+    mod.props.zip(props).foreach { case (a, b) => a <> b }
   }
 }
