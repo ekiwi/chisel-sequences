@@ -13,6 +13,7 @@ object SequenceFsms {
   def compile(s: Sequence): SequenceIO = {
     s match {
       case SeqExpr(predicate) => SeqExprModule(predicate)
+      case SeqConcat(s1, s2)  => SeqConcatModule(compile(s1), compile(s2))
     }
   }
 }
@@ -60,6 +61,56 @@ object SeqExprModule {
   def apply(predicate: Bool): SequenceIO = {
     val mod = Module(new SeqExprModule).suggestName("seq_expr")
     mod.predicate := predicate
+    mod.io
+  }
+}
+
+/** concatenates two sequences */
+class SeqConcatModule extends Module {
+  import SeqRes._
+
+  val io = IO(new SequenceIO)
+  val seq1 = IO(Flipped(new SequenceIO)); seq1.advance := false.B
+  val seq2 = IO(Flipped(new SequenceIO)); seq2.advance := false.B
+
+  // keep track of which sequence is running
+  val run1 = RegInit(false.B)
+  val run2 = RegInit(false.B)
+
+  // running if either of the sub-sequences runs
+  io.running := run1 || run2
+
+  // we run sequence 1 if we are in the starting state or if run1 is true
+  val shouldRunSeq1 = run1 || (!run1 && !run2)
+  when(io.advance) {
+    // advance sequence 1
+    when(shouldRunSeq1) {
+      seq1.advance := true.B
+      val r = seq1.status
+      // we fail if the sub-sequence fails
+      io.status := Mux(r === SeqFail, SeqFail, SeqPending)
+      // we continue with sequence one if it hold or is pending
+      run1 := r.isOneOf(SeqPending, SeqHold)
+      // we stop executing sequence 1 and switch to sequence 2 in the next cycle
+      run2 := r.isOneOf(SeqHoldStrong)
+    }.otherwise {
+      seq2.advance := true.B
+      val r2 = seq2.status
+      // since we already checked sequence 1 we can just relay the status
+      io.status := r2
+      // continue executing if sequence 2 is not finished
+      run2 := r2.isOneOf(SeqPending, SeqHold)
+    }
+  }.otherwise {
+    io.status := DontCare
+  }
+}
+
+object SeqConcatModule {
+  def apply(s1: SequenceIO, s2: SequenceIO): SequenceIO = {
+    val mod = Module(new SeqConcatModule).suggestName("seq_concat")
+    mod.seq1 <> s1
+    mod.seq2 <> s2
     mod.io
   }
 }

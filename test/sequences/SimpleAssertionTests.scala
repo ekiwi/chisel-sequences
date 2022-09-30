@@ -36,4 +36,33 @@ class SimpleAssertionTests extends AnyFreeSpec with ChiselScalatestTester {
     assert(e.getMessage.contains("assertion"))
   }
 
+  "simple concat sequence should pass" in {
+    test(new PropertyTester {
+      override def prop = PropSeq(SeqConcat(SeqExpr(a), SeqExpr(b)))
+    }) { dut =>
+      dut.a.poke(true) // make assertion pass
+      dut.b.poke(false) // does not matter
+      dut.clock.step()
+      dut.a.poke(false) // should not matter anymore since we do not _always_ assert
+      dut.b.poke(true) // make assertion pass
+      dut.clock.step()
+      dut.b.poke(false) // should not matter anymore since we do not _always_ assert
+      dut.clock.step()
+    }
+  }
+
+  "simple concat sequence should fail" in {
+    val e = intercept[ChiselAssertionError] {
+      test(new PropertyTester {
+        override def prop = PropSeq(SeqConcat(SeqExpr(a), SeqExpr(b)))
+      }) { dut =>
+        dut.a.poke(true) // make assertion pass for now
+        dut.b.poke(false) // does not matter
+        dut.clock.step()
+        dut.b.poke(false) // make assertion fail
+        dut.clock.step()
+      }
+    }
+    assert(e.getMessage.contains("assertion"))
+  }
 }
