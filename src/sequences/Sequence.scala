@@ -4,7 +4,9 @@ package sequences
 
 import chisel3._
 
-sealed trait Sequence {}
+sealed trait Sequence {
+  def ###(): Unit = ???
+}
 
 case class SeqExpr(predicate: Bool) extends Sequence
 case class SeqOr(s1: Sequence, s2: Sequence) extends Sequence

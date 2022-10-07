@@ -4,60 +4,59 @@ import chisel3._
 import chiseltest._
 import org.scalatest.freespec.AnyFreeSpec
 
-abstract class PropertyAssertOnceTester extends Module {
-  val a = IO(Input(Bool()))
-  val b = IO(Input(Bool()))
-  def prop: Property
-  def desc: String = "???"
-  AssertPropModule(SequenceFsms.compile(prop), desc)
-}
-
 abstract class PropertyAlwaysAssertTester extends Module {
   val a = IO(Input(Bool()))
   val b = IO(Input(Bool()))
   def prop: Property
   def desc: String = "???"
-  SequenceFsms.assertAlways(prop, desc)
+  SequenceFsms.assertAlways(prop)
 }
 
+case class PropertyTest(prop: (Bool, Bool) => Property, a: String = "", b: String = "", failAt: Option[Int] = None) {
+  require(failAt.isEmpty || failAt.get >= 0)
+}
+class PropertyTestModule(prop: (Bool, Bool) => Property) extends Module {
+  val a = IO(Input(Bool()))
+  val b = IO(Input(Bool()))
+  val fail = IO(Output(Bool()))
+  val m = SequenceFsms.assertAlways(prop(a, b))
+  m.advance := !reset.asBool
+  fail := m.fail
+}
+
+
+
 class SimpleAssertionTests extends AnyFreeSpec with ChiselScalatestTester {
-  "simple boolean property assert should pass" in {
-    test(new PropertyAssertOnceTester {
-      override def prop = PropSeq(SeqExpr(a))
-    }) { dut =>
-      dut.a.poke(true) // make assertion pass
-      dut.clock.step()
-      dut.a.poke(false) // should not matter anymore since we do not _always_ assert
-      dut.clock.step()
-    }
+
+  def shouldPass(a: String = "", b: String = "", prop: (Bool, Bool) => Property): Unit = {
+    run(PropertyTest(a=a, b=b, prop=prop, failAt = None))
+  }
+  def shouldFail(failAt: Int, a: String = "", b: String = "", prop: (Bool, Bool) => Property): Unit = {
+    run(PropertyTest(a=a, b=b, prop=prop, failAt = Some(failAt)))
   }
 
-  "simple boolean property assert should fail" in {
-    val e = intercept[ChiselAssertionError] {
-      test(new PropertyAssertOnceTester {
-        override def prop = PropSeq(SeqExpr(a))
-      }) { dut =>
-        dut.a.poke(false) // make assertion fail
+  def run(tst: PropertyTest): Unit = {
+    var cycle = 0
+    test(new PropertyTestModule(tst)) { dut =>
+      while(!dut.done.peekBoolean()) {
+        tst.failAt match {
+          case Some(value) if value == cycle =>
+            dut.fail.expect(true)
+          case None => dut.fail.expect(false)
+        }
         dut.clock.step()
+        cycle += 1
       }
     }
-    assert(e.getMessage.contains("assertion"))
   }
 
-  "simple concat sequence should pass" in {
-    test(new PropertyAssertOnceTester {
-      override def prop = PropSeq(SeqConcat(SeqExpr(a), SeqExpr(b)))
-    }) { dut =>
-      dut.a.poke(true) // make assertion pass
-      dut.b.poke(false) // does not matter
-      dut.clock.step()
-      dut.a.poke(false) // should not matter anymore since we do not _always_ assert
-      dut.b.poke(true) // make assertion pass
-      dut.clock.step()
-      dut.b.poke(false) // should not matter anymore since we do not _always_ assert
-      dut.clock.step()
+    "simple boolean property assert should pass" in {
+      shouldPass(
+        prop = (a, _) => PropSeq(SeqExpr(a)),
+        a = "10",
+      )
     }
-  }
+
 
   "simple concat sequence should fail always assert" in {
     val e = intercept[ChiselAssertionError] {
@@ -88,18 +87,6 @@ class SimpleAssertionTests extends AnyFreeSpec with ChiselScalatestTester {
     }
   }
 
-  "simple concat sequence should fail" in {
-    val e = intercept[ChiselAssertionError] {
-      test(new PropertyAssertOnceTester {
-        override def prop = PropSeq(SeqConcat(SeqExpr(a), SeqExpr(b)))
-      }) { dut =>
-        dut.a.poke(true) // make assertion pass for now
-        dut.b.poke(false) // does not matter
-        dut.clock.step()
-        dut.b.poke(false) // make assertion fail
-        dut.clock.step()
-      }
-    }
-    assert(e.getMessage.contains("assertion"))
-  }
+
+
 }
