@@ -28,4 +28,11 @@ class FrontendTests extends AnyFreeSpec with ChiselScalatestTester {
     }
     test(new Test) { _ => }
   }
+
+  "parse a |=> b" in {
+    class Test extends BasicTestModule {
+      a |=> b
+    }
+    test(new Test) { _ => }
+  }
 }
