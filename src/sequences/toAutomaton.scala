@@ -5,14 +5,13 @@
 package sequences
 
 import chisel3.Bool
-import backend.{Backend, PropertyInfo, SeqPred}
 
 import scala.collection.mutable
 
 object toAutomaton {
-  def apply(prop: Property, backend: Backend): Bool = {
+  def apply(prop: Property, backendImpl: backend.Backend): Bool = {
     val (info, pred) = new ToIRConverter().toIR(prop)
-    val mod = backend.compile(info)
+    val mod = backendImpl.compile(info)
     // connect predicates as inputs
     mod.io.predicates.elements.foreach { case (name, input) => input := pred(name) }
     // return fail signal
@@ -23,7 +22,7 @@ object toAutomaton {
 private class ToIRConverter {
   private val pred = mutable.LinkedHashMap[Bool, String]()
 
-  def toIR(prop: Property): (PropertyInfo, Map[String, Bool]) = {
+  def toIR(prop: Property): (backend.PropertyInfo, Map[String, Bool]) = {
     pred.clear()
     val propertyIR = convert(prop)
     val nameToPred = pred.toSeq.map { case (a, b) => (b, a) }
@@ -37,7 +36,7 @@ private class ToIRConverter {
   private def convert(seq: Sequence): backend.Sequence = seq match {
     case SeqExpr(predicate) =>
       val name = pred.getOrElseUpdate(predicate, f"p${pred.size}")
-      SeqPred(name)
+      backend.SeqPred(name)
     case SeqOr(s1, s2)          => backend.SeqOr(convert(s1), convert(s2))
     case SeqConcat(s1, s2)      => backend.SeqConcat(convert(s1), convert(s2))
     case SeqIntersect(s1, s2)   => backend.SeqIntersect(convert(s1), convert(s2))
