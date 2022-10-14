@@ -16,6 +16,13 @@ jobs:
       with:
         osscadsuite-version: '2022-09-30'
 
+    - name: Install Spot
+      run: |
+        sudo wget -q -O - https://www.lrde.epita.fr/repo/debian.gpg | apt-key add -
+        sudo echo 'deb http://www.lrde.epita.fr/repo/debian/ stable/' >> /etc/apt/sources.list
+        sudo apt-get update -y
+        sudo apt-get install -y spot
+
     - name: Install Scala
       uses: olafurpg/setup-scala@v10
       with:
