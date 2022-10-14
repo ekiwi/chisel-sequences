@@ -2,15 +2,14 @@
 // released under BSD 3-Clause License
 // author: Kevin Laeufer <laeufer@cs.berkeley.edu>
 
-package sequences.frontend
+package sequences
 
 import scala.language.implicitConversions
 
-package object frontend {
+package object sequences {
   implicit def chiselBoolToSequence(b: chisel3.Bool): Sequence = SeqExpr(b)
   implicit def chiselBoolToProperty(b: chisel3.Bool): Property = PropSeq(SeqExpr(b))
   implicit def sequenceToProperty(s:   Sequence):     Property = PropSeq(s)
-
 }
 
 sealed trait Sequence {

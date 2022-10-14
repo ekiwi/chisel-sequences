@@ -2,13 +2,37 @@
 // released under BSD 3-Clause License
 // author: Kevin Laeufer <laeufer@cs.berkeley.edu>
 
-package sequences
+package sequences.backend
 
 import chisel3._
 
+import scala.collection.immutable.{SeqMap, VectorMap}
+
+trait Backend {
+  def name: String
+  def compile(prop: PropertyInfo): PropertyAutomatonModule
+}
+
+/** Contains a converted property and the name of all predicates used in it. */
+case class PropertyInfo(prop: Property, predicates: Seq[String])
+
+class PredicateBundle(predicates: Seq[String]) extends Record {
+  override val elements:  SeqMap[String, Bool] = VectorMap[String, Bool](predicates.map(p => p -> Input(Bool())): _*)
+  override def cloneType: PredicateBundle.this.type = new PredicateBundle(predicates).asInstanceOf[this.type]
+}
+
+class PropertyAutomatonIO(preds: Seq[String]) extends Bundle {
+  val predicates = new PredicateBundle(preds)
+  val fail = Output(Bool())
+}
+
+trait PropertyAutomatonModule { this: Module =>
+  val io: PropertyAutomatonIO
+}
+
 sealed trait Sequence {}
 
-case class SeqExpr(predicate: Bool) extends Sequence
+case class SeqPred(predicate: String) extends Sequence
 case class SeqOr(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqConcat(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqIntersect(s1: Sequence, s2: Sequence) extends Sequence
@@ -30,7 +54,7 @@ object serialize {
 
   def apply(s: Sequence): String = {
     s match {
-      case SeqExpr(predicate)     => predicate.toString
+      case SeqPred(predicate)     => predicate
       case SeqOr(s1, s2)          => apply(s1) + " or " + apply(s2)
       case SeqConcat(s1, s2)      => apply(s1) + " ##1 " + apply(s2)
       case SeqIntersect(s1, s2)   => apply(s1) + " and " + apply(s2)

@@ -7,7 +7,7 @@ package sequences
 import chisel3._
 import chiseltest._
 import org.scalatest.freespec.AnyFreeSpec
-import sequences.frontend.frontend._
+import sequences._
 
 abstract class BasicTestModule extends Module {
   val a = IO(Input(Bool()))

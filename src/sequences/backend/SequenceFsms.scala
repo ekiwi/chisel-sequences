@@ -2,29 +2,34 @@
 // released under BSD 3-Clause License
 // author: Kevin Laeufer <laeufer@cs.berkeley.edu>
 
-package sequences
+package sequences.backend
 
 import chisel3._
 import chisel3.experimental.ChiselEnum
 import chisel3.util._
 
-object SequenceFsms {
-  def compile(p: Property): PropertyIO = {
+object SequenceFsms extends Backend {
+  override val name: String = "Sequence FSMs"
+  override def compile(prop: PropertyInfo): PropertyAutomatonModule = {
+    Module(new PropertyFsmAutomaton(prop.predicates, { pred => compileAlways(pred, prop.prop) }))
+  }
+
+  private def compileAlways(pred: Map[String, Bool], p: Property): Bool = {
+    val n = runtime(p)
+    val props = Seq.fill(n)(compile(pred, p))
+    AssertAlwaysModule(props)
+  }
+
+  private def compile(pred: Map[String, Bool], p: Property): PropertyFsmIO = {
     p match {
-      case PropSeq(s) => PropSeqModule(compile(s))
+      case PropSeq(s) => PropSeqModule(comp(pred, s))
     }
   }
 
-  def assertAlways(p: Property, desc: String): Unit = {
-    val n = runtime(p)
-    val props = Seq.fill(n)(compile(p))
-    AssertAlwaysModule(props, desc)
-  }
-
-  private def compile(s: Sequence): SequenceIO = {
+  private def comp(pred: Map[String, Bool], s: Sequence): SequenceIO = {
     s match {
-      case SeqExpr(predicate) => SeqExprModule(predicate)
-      case SeqConcat(s1, s2)  => SeqConcatModule(compile(s1), compile(s2))
+      case SeqPred(predicate) => SeqExprModule(pred(predicate))
+      case SeqConcat(s1, s2)  => SeqConcatModule(comp(pred, s1), comp(pred, s2))
     }
   }
 
@@ -38,13 +43,20 @@ object SequenceFsms {
   /** calculates an upper bound for the sequence runtime in cycles */
   private def runtime(s: Sequence): Int = {
     s match {
-      case SeqExpr(_)        => 1
+      case SeqPred(_)        => 1
       case SeqOr(s1, s2)     => runtime(s1).max(runtime(s2))
       case SeqFuse(s1, s2)   => runtime(s1) + runtime(s2) - 1
       case SeqConcat(s1, s2) => runtime(s1) + runtime(s2)
     }
   }
 
+}
+
+class PropertyFsmAutomaton(preds: Seq[String], compile: Map[String, Bool] => Bool)
+    extends Module
+    with PropertyAutomatonModule {
+  val io = IO(new PropertyAutomatonIO(preds))
+  io.fail := compile(io.predicates.elements)
 }
 
 object SeqRes extends ChiselEnum {
@@ -67,7 +79,7 @@ object PropRes extends ChiselEnum {
   val PropTrue, PropUndetermined, PropFalse, PropVacuous = Value
 }
 
-class PropertyIO extends Bundle {
+class PropertyFsmIO extends Bundle {
 
   /** is the FSM active this cycle? */
   val advance = Input(Bool())
@@ -147,7 +159,7 @@ object SeqConcatModule {
 /** converts a sequence I/O into a property I/O */
 class PropSeqModule extends Module {
   val seq = IO(Flipped(new SequenceIO))
-  val io = IO(new PropertyIO)
+  val io = IO(new PropertyFsmIO)
   // advance is just connected
   seq.advance := io.advance
 
@@ -164,7 +176,7 @@ class PropSeqModule extends Module {
 }
 
 object PropSeqModule {
-  def apply(s: SequenceIO): PropertyIO = {
+  def apply(s: SequenceIO): PropertyFsmIO = {
     val mod = Module(new PropSeqModule).suggestName("prop_seq")
     mod.seq <> s
     mod.io
@@ -175,7 +187,7 @@ object PropSeqModule {
   *  @note: this is not an always assert, it will only check the property once!
   */
 class AssertPropModule(desc: String) extends Module {
-  val propertyIO = IO(Flipped(new PropertyIO))
+  val propertyIO = IO(Flipped(new PropertyFsmIO))
 
   // the assertion is active starting at reset
   val going = RegInit(true.B)
@@ -192,7 +204,7 @@ class AssertPropModule(desc: String) extends Module {
 }
 
 object AssertPropModule {
-  def apply(p: PropertyIO, desc: String): Unit = {
+  def apply(p: PropertyFsmIO, desc: String): Unit = {
     val mod = Module(new AssertPropModule(desc)).suggestName("assert_prop")
     mod.propertyIO <> p
   }
@@ -211,10 +223,11 @@ object findFirstInactive {
   }
 }
 
-class AssertAlwaysModule(n: Int, desc: String) extends Module {
+class AssertAlwaysModule(n: Int) extends Module {
   import PropRes._
 
-  val props = IO(Vec(n, Flipped(new PropertyIO)))
+  val props = IO(Vec(n, Flipped(new PropertyFsmIO)))
+  val fail = IO(Output(Bool()))
 
   val active = RegInit(0.U(n.W))
 
@@ -234,17 +247,14 @@ class AssertAlwaysModule(n: Int, desc: String) extends Module {
   active := stillRunning & nowActive
 
   // none of the properties that we advance should be false
-  props.foreach { prop =>
-    when(prop.advance) {
-      // if the property returns false, this assertion fails
-      assert(prop.status =/= PropRes.PropFalse, desc)
-    }
-  }
+  val propFailed = Cat(props.map(p => p.status === PropFalse)) // TODO: reverse?
+  fail := (propFailed & nowActive) =/= 0.U
 }
 
 object AssertAlwaysModule {
-  def apply(props: Seq[PropertyIO], desc: String): Unit = {
-    val mod = Module(new AssertAlwaysModule(props.length, desc))
+  def apply(props: Seq[PropertyFsmIO]): Bool = {
+    val mod = Module(new AssertAlwaysModule(props.length))
     mod.props.zip(props).foreach { case (a, b) => a <> b }
+    mod.fail
   }
 }
