@@ -3,7 +3,7 @@ package sequences.backend
 import fastparse._
 import fastparse.NoWhitespace._
 
-/**A parser for a subset of the Hanoi Omega Automata (HOA) Format
+/** A parser for a subset of the Hanoi Omega Automata (HOA) Format
   */
 object HOAParser {
   type AP = Int
@@ -40,16 +40,16 @@ object HOAParser {
       .toSeq
   }
 
-  def trueLit[_:         P]: P[Condition] = P(CharIn("t").map(_ => True))
-  def predId[_:          P]: P[Predicate] = P(CharIn("0-9").rep(1).!.map(id => Predicate(id.toInt)))
-  def not[_:             P]: P[Condition] = P("!" ~ predId).map(p => Not(p))
-  def atom[_:            P]: P[Condition] = P(not | predId)
-  def and[_:             P]: P[Condition] = P(atom ~ ("&" ~ atom).rep(1)).map {
-    case (p1: Condition, andSeq: Seq[Condition]) => And(Seq(p1) ++ andSeq : _*)
+  def trueLit[_: P]: P[Condition] = P(CharIn("t").map(_ => True))
+  def predId[_:  P]: P[Predicate] = P(CharIn("0-9").rep(1).!.map(id => Predicate(id.toInt)))
+  def not[_:     P]: P[Condition] = P("!" ~ predId).map(p => Not(p))
+  def atom[_:    P]: P[Condition] = P(not | predId)
+  def and[_:     P]: P[Condition] = P(atom ~ ("&" ~ atom).rep(1)).map { case (p1: Condition, andSeq: Seq[Condition]) =>
+    And(Seq(p1) ++ andSeq: _*)
   }
-  def atomOrAnd[_:       P]: P[Condition] = P(and | atom)
-  def or[_:              P]: P[Condition] = P(atomOrAnd ~ (" | " ~ atomOrAnd).rep(1)).map {
-    case (p1: Condition, orSeq: Seq[Condition]) => Or(Seq(p1) ++ orSeq : _*)
+  def atomOrAnd[_: P]: P[Condition] = P(and | atom)
+  def or[_:        P]: P[Condition] = P(atomOrAnd ~ (" | " ~ atomOrAnd).rep(1)).map {
+    case (p1: Condition, orSeq: Seq[Condition]) => Or(Seq(p1) ++ orSeq: _*)
   }
   def conditionParser[_: P]: P[Condition] = P((trueLit | or | and | atom) ~ End)
 

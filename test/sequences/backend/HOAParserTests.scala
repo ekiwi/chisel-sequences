@@ -21,26 +21,33 @@ class HOAParserTests extends AnyFreeSpec {
     assert(parse("t", conditionParser(_)).get.value == True)
     assert(parse("0", conditionParser(_)).get.value == Predicate(0))
     assert(parse("100", conditionParser(_)).get.value == Predicate(100))
-    assert(parse("23&45", conditionParser(_)).get.value ==
-      And(Predicate(23), Predicate(45))
+    assert(
+      parse("23&45", conditionParser(_)).get.value ==
+        And(Predicate(23), Predicate(45))
     )
-    assert(parse("1&!3", conditionParser(_)).get.value ==
-      And(Predicate(1), Not(Predicate(3)))
+    assert(
+      parse("1&!3", conditionParser(_)).get.value ==
+        And(Predicate(1), Not(Predicate(3)))
     )
-    assert(parse("1&!3&!5", conditionParser(_)).get.value ==
-      And(Predicate(1), Not(Predicate(3)), Not(Predicate(5)))
+    assert(
+      parse("1&!3&!5", conditionParser(_)).get.value ==
+        And(Predicate(1), Not(Predicate(3)), Not(Predicate(5)))
     )
-    assert(parse("!1&2&!3&!5&6", conditionParser(_)).get.value ==
-      And(Not(Predicate(1)), Predicate(2), Not(Predicate(3)), Not(Predicate(5)), Predicate(6))
+    assert(
+      parse("!1&2&!3&!5&6", conditionParser(_)).get.value ==
+        And(Not(Predicate(1)), Predicate(2), Not(Predicate(3)), Not(Predicate(5)), Predicate(6))
     )
-    assert(parse("1 | 2", conditionParser(_)).get.value ==
-      Or(Predicate(1), Predicate(2))
+    assert(
+      parse("1 | 2", conditionParser(_)).get.value ==
+        Or(Predicate(1), Predicate(2))
     )
-    assert(parse("!0 | 1&!3 | 2&3&!4", conditionParser(_)).get.value == Or(
-      Not(Predicate(0)),
-      And(Predicate(1), Not(Predicate(3))),
-      And(Predicate(2), Predicate(3), Not(Predicate(4)))
-    ))
+    assert(
+      parse("!0 | 1&!3 | 2&3&!4", conditionParser(_)).get.value == Or(
+        Not(Predicate(0)),
+        And(Predicate(1), Not(Predicate(3))),
+        And(Predicate(2), Predicate(3), Not(Predicate(4)))
+      )
+    )
   }
 
   "parse trivial formula 'a'" in {
