@@ -14,10 +14,10 @@ object Spot extends Backend {
     val seq = prop.prop match {
       case PropSeq(s) => s
     }
-    val psl = sequenceToPSL(seq)
+    val psl = s"G(${sequenceToPSL(seq)})"
     val hoaString = callSpot(psl)
     val hoa = HOAParser.parseHOA(hoaString)
-    new SpotPropertyAutomaton(preds, hoa)
+    Module(new SpotPropertyAutomaton(preds, hoa))
   }
 
   def boolExprtoPSL(e: BooleanExpr): String = e match {
@@ -56,7 +56,7 @@ object Spot extends Backend {
         case HOAParser.Predicate(ap)   => predBundle.elements(apMap(ap))
         case HOAParser.Not(p)          => !predBundle.elements(apMap(p.ap))
         case HOAParser.And(conds @ _*) => conds.map(conditionToChisel(_, apMap)(predBundle)).reduce(_ && _)
-        case HOAParser.Or(conds @ _*)  => ???
+        case HOAParser.Or(conds @ _*)  => conds.map(conditionToChisel(_, apMap)(predBundle)).reduce(_ || _)
       }
   }
 
@@ -83,15 +83,18 @@ object Spot extends Backend {
     val io = IO(new PropertyAutomatonIO(preds))
 
     val automataState = RegInit(UInt(log2Ceil(hoa.nStates).W), hoa.initialState.U)
-    val failState = RegInit(Bool(), false.B)
-    io.fail := failState
+    val failed = RegInit(Bool(), false.B)
+    val willFail = WireDefault(false.B)
 
     for ((stateId, state) <- hoa.states) {
       when(automataState === stateId.U) {
         val (nextState, fail) = nextStateCircuit(io.predicates, state.transitions, hoa.aps)
         automataState := nextState
-        failState := Mux(failState === 1.B, failState, fail) // failState is sticky to true
+        willFail := fail
       }
     }
+
+    failed := Mux(failed, failed, willFail)
+    io.fail := failed || willFail
   }
 }

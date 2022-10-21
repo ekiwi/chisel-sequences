@@ -8,5 +8,4 @@ object assertAlways {
     val fail = toAutomaton(prop, backend)
     assert(!fail, desc)
   }
-
 }
