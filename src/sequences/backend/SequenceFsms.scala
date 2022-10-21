@@ -28,9 +28,16 @@ object SequenceFsms extends Backend {
 
   private def comp(pred: Map[String, Bool], s: Sequence): SequenceIO = {
     s match {
-      case SeqPred(predicate) => SeqExprModule(pred(predicate))
+      case SeqPred(predicate) => SeqExprModule(comp(pred, predicate))
       case SeqConcat(s1, s2)  => SeqConcatModule(comp(pred, s1), comp(pred, s2))
     }
+  }
+
+  private def comp(pred: Map[String, Bool], e: BooleanExpr): Bool = e match {
+    case SymbolExpr(name) => pred(name)
+    case NotExpr(e)       => !comp(pred, e)
+    case AndExpr(a, b)    => comp(pred, a) && comp(pred, b)
+    case OrExpr(a, b)     => comp(pred, a) || comp(pred, b)
   }
 
   /** calculates an upper bound for the property runtime in cycles */

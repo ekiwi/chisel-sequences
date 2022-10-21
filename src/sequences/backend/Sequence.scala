@@ -30,9 +30,15 @@ trait PropertyAutomatonModule { this: Module =>
   val io: PropertyAutomatonIO
 }
 
+sealed trait BooleanExpr {}
+case class SymbolExpr(name: String) extends BooleanExpr
+case class NotExpr(e: BooleanExpr) extends BooleanExpr
+case class AndExpr(a: BooleanExpr, b: BooleanExpr) extends BooleanExpr
+case class OrExpr(a: BooleanExpr, b: BooleanExpr) extends BooleanExpr
+
 sealed trait Sequence {}
 
-case class SeqPred(predicate: String) extends Sequence
+case class SeqPred(predicate: BooleanExpr) extends Sequence
 case class SeqOr(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqConcat(s1: Sequence, s2: Sequence) extends Sequence
 case class SeqIntersect(s1: Sequence, s2: Sequence) extends Sequence
@@ -54,7 +60,7 @@ object serialize {
 
   def apply(s: Sequence): String = {
     s match {
-      case SeqPred(predicate)     => predicate
+      case SeqPred(predicate)     => apply(predicate)
       case SeqOr(s1, s2)          => apply(s1) + " or " + apply(s2)
       case SeqConcat(s1, s2)      => apply(s1) + " ##1 " + apply(s2)
       case SeqIntersect(s1, s2)   => apply(s1) + " and " + apply(s2)
@@ -63,5 +69,12 @@ object serialize {
       case SeqImpliesNext(s1, p1) => apply(s1) + "implies next" + apply(p1)
       case SeqFuse(s1, s2)        => apply(s1) + " ##0 " + apply(s2)
     }
+  }
+
+  def apply(e: BooleanExpr): String = e match {
+    case SymbolExpr(name) => name
+    case NotExpr(e)       => s"!${apply(e)}"
+    case AndExpr(a, b)    => s"(${apply(a)} && ${apply(b)})"
+    case OrExpr(a, b)     => s"(${apply(a)} || ${apply(b)})"
   }
 }

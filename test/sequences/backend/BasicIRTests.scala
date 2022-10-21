@@ -9,9 +9,10 @@ import org.scalatest.freespec.AnyFreeSpec
 class BasicIRTests extends AnyFreeSpec {
 
   "case class IR should serialize to a human readable format" in {
-    assert(serialize(SeqPred("a")) == "a")
-    assert(serialize(PropSeq(SeqPred("a"))) == "a")
-    assert(serialize(SeqOr(SeqPred("a"), SeqPred("b"))) == "a or b")
+    val (a, b) = (SymbolExpr("a"), SymbolExpr("b"))
+    assert(serialize(SeqPred(a)) == "a")
+    assert(serialize(PropSeq(SeqPred(a))) == "a")
+    assert(serialize(SeqOr(SeqPred(a), SeqPred(b))) == "a or b")
   }
 
 }

@@ -24,7 +24,7 @@ object Spot {
               })
           }
            */
-          s"($predicate)"
+          s"(${toPSL(predicate)})"
         case SeqOr(s1, s2) => ???
         case SeqConcat(s1, s2) =>
           s"(${toPSL(s1)} & X(${toPSL(s2)}))"
@@ -34,6 +34,13 @@ object Spot {
         case SeqImpliesNext(s1, p1) => ???
         case SeqFuse(s1, s2)        => ???
       }
+    }
+
+    def toPSL(e: BooleanExpr): String = e match {
+      case SymbolExpr(name) => name
+      case NotExpr(e)       => ???
+      case AndExpr(a, b)    => ???
+      case OrExpr(a, b)     => ???
     }
   }
 

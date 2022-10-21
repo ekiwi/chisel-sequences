@@ -36,7 +36,7 @@ private class ToIRConverter {
   private def convert(seq: Sequence): backend.Sequence = seq match {
     case SeqExpr(predicate) =>
       val name = pred.getOrElseUpdate(predicate, f"p${pred.size}")
-      backend.SeqPred(name)
+      backend.SeqPred(backend.SymbolExpr(name))
     case SeqOr(s1, s2)          => backend.SeqOr(convert(s1), convert(s2))
     case SeqConcat(s1, s2)      => backend.SeqConcat(convert(s1), convert(s2))
     case SeqIntersect(s1, s2)   => backend.SeqIntersect(convert(s1), convert(s2))
