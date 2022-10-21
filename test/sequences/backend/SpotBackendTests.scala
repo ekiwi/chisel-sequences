@@ -19,7 +19,7 @@ class SpotBackendTests extends AnyFreeSpec with ChiselScalatestTester {
     val notB = SeqNot(b)
 
     def checker(): PropertyAutomatonModule = {
-      Spot.compile(PropertyInfo(PropSeq( SeqConcat(a, notB) ), Seq("a", "b")))
+      Spot.compile(PropertyInfo(PropSeq(SeqConcat(a, notB)), Seq("a", "b")))
     }
 
     test(checker()).withAnnotations(Seq(WriteVcdAnnotation)) { c =>

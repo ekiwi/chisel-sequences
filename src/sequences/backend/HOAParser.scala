@@ -51,9 +51,9 @@ object HOAParser {
   }
   def atomOrAnd[_: P]: P[And] = P(and | atom).map {
     case atom: Atom => And(atom)
-    case and: And => and
+    case and:  And  => and
   }
-  def or[_:        P]: P[Or] = P(atomOrAnd ~ (" | " ~ atomOrAnd).rep(1)).map { case (p1: Condition, orSeq: Seq[Condition]) =>
+  def or[_: P]: P[Or] = P(atomOrAnd ~ (" | " ~ atomOrAnd).rep(1)).map { case (p1: Condition, orSeq: Seq[Condition]) =>
     Or(Seq(p1) ++ orSeq: _*)
   }
   def conditionParser[_: P]: P[Condition] = P((trueLit | or | and | atom) ~ End)
