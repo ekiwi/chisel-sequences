@@ -59,9 +59,7 @@ object SequenceFsms extends Backend {
 
 }
 
-class PropertyFsmAutomaton(preds: Seq[String], compile: Map[String, Bool] => Bool)
-    extends Module
-    with PropertyAutomatonModule {
+class PropertyFsmAutomaton(preds: Seq[String], compile: Map[String, Bool] => Bool) extends PropertyAutomatonModule {
   val io = IO(new PropertyAutomatonIO(preds))
   io.fail := compile(io.predicates.elements)
 }

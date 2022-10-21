@@ -39,11 +39,11 @@ class HOAParserTests extends AnyFreeSpec {
     )
     assert(
       parse("1 | 2", conditionParser(_)).get.value ==
-        Or(Predicate(1), Predicate(2))
+        Or(And(Predicate(1)), And(Predicate(2)))
     )
     assert(
       parse("!0 | 1&!3 | 2&3&!4", conditionParser(_)).get.value == Or(
-        Not(Predicate(0)),
+        And(Not(Predicate(0))),
         And(Predicate(1), Not(Predicate(3))),
         And(Predicate(2), Predicate(3), Not(Predicate(4)))
       )
@@ -78,9 +78,9 @@ class HOAParserTests extends AnyFreeSpec {
         initialState = 1,
         aps = Map(0 -> "a"),
         acceptingState = 1,
-        states = Set(
-          State(0, accepting = true, Map(True -> 0)),
-          State(1, accepting = false, Map(Predicate(0) -> 0))
+        states = Map(
+          0 -> State(0, accepting = true, Map(True -> 0)),
+          1 -> State(1, accepting = false, Map(Predicate(0) -> 0))
         )
       )
     )
@@ -113,9 +113,9 @@ class HOAParserTests extends AnyFreeSpec {
         initialState = 0,
         aps = Map(0 -> "a", 1 -> "b"),
         acceptingState = 1,
-        states = Set(
-          State(0, accepting = false, Map(Predicate(0) -> 1)),
-          State(1, accepting = true, Map(And(Predicate(0), Not(Predicate(1))) -> 1))
+        states = Map(
+          0 -> State(0, accepting = false, Map(Predicate(0) -> 1)),
+          1 -> State(1, accepting = true, Map(And(Predicate(0), Not(Predicate(1))) -> 1))
         )
       )
     )

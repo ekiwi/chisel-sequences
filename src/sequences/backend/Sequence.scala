@@ -26,7 +26,7 @@ class PropertyAutomatonIO(preds: Seq[String]) extends Bundle {
   val fail = Output(Bool())
 }
 
-trait PropertyAutomatonModule { this: Module =>
+abstract class PropertyAutomatonModule extends Module {
   val io: PropertyAutomatonIO
 }
 

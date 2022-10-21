@@ -1,77 +1,97 @@
 package sequences.backend
 
-import chisel3.Bool
+import chisel3._
+import chisel3.util._
+import sequences.backend.HOAParser.Condition
 
-import scala.collection.mutable
+import HOAParser._
 
-object Spot {
-  private class Serializer() {
-    val nameMap = mutable.Map[Bool, String]()
-    var nextChar: Char = 'a'
+object Spot extends Backend {
+  override val name: String = "Spot"
 
-    def toPSL(s: Sequence): String = {
-      s match {
-        case SeqPred(predicate) =>
-          /*
-          predicate.litToBooleanOption match {
-            case Some(true) => "(t)"
-            case Some(false) => "(f)"
-            case None =>
-              nameMap.getOrElseUpdate(predicate, {
-                val c = nextChar.toString;
-                nextChar = (nextChar + 1).toChar;
-                s"($c)"
-              })
-          }
-           */
-          s"(${toPSL(predicate)})"
-        case SeqOr(s1, s2) => ???
-        case SeqConcat(s1, s2) =>
-          s"(${toPSL(s1)} & X(${toPSL(s2)}))"
-        case SeqIntersect(s1, s2)   => ???
-        case SeqNot(s1)             => ???
-        case SeqImplies(s1, p1)     => ???
-        case SeqImpliesNext(s1, p1) => ???
-        case SeqFuse(s1, s2)        => ???
-      }
+  override def compile(prop: PropertyInfo): PropertyAutomatonModule = {
+    val preds = prop.predicates
+    val seq = prop.prop match {
+      case PropSeq(s) => s
     }
-
-    def toPSL(e: BooleanExpr): String = e match {
-      case SymbolExpr(name) => name
-      case NotExpr(e)       => ???
-      case AndExpr(a, b)    => ???
-      case OrExpr(a, b)     => ???
-    }
+    val psl = sequenceToPSL(seq)
+    val hoaString = callSpot(psl)
+    val hoa = HOAParser.parseHOA(hoaString)
+    new SpotPropertyAutomaton(preds, hoa)
   }
 
-  def toPSL(s: Sequence): String = {
-    val ser = new Serializer()
-    ser.toPSL(s)
+  def boolExprtoPSL(e: BooleanExpr): String = e match {
+    case SymbolExpr(name) => name
+    case NotExpr(e)       => s"!(${boolExprtoPSL(e)})"
+    case AndExpr(a, b)    => ???
+    case OrExpr(a, b)     => ???
+  }
+
+  def sequenceToPSL(s: Sequence): String = {
+    s match {
+      case SeqPred(predicate) =>
+        s"(${boolExprtoPSL(predicate)})"
+      case SeqConcat(s1, s2) =>
+        s"(${sequenceToPSL(s1)} & X(${sequenceToPSL(s2)}))"
+      case SeqOr(s1, s2)          => ???
+      case SeqIntersect(s1, s2)   => ???
+      case SeqNot(s1)             => s"!${sequenceToPSL(s1)}"
+      case SeqImplies(s1, p1)     => ???
+      case SeqImpliesNext(s1, p1) => ???
+      case SeqFuse(s1, s2)        => ???
+    }
   }
 
   def callSpot(psl: String): String = {
     val cmd = Seq("ltl2tgba", "-B", "-D", "-f", psl)
     val result = os.proc(cmd).call()
     assert(result.exitCode == 0)
-    // val inputStream = new ByteArrayInputStream(result.out.bytes)
-    // val bufferedInputStream = new BufferedInputStream(inputStream)
-    //val consumer = new HOAParserConsumer()
-    //HOAFParser.parseHOA(bufferedInputStream, consumer)
-    //bufferedInputStream.close()
-    //inputStream.close()
-    //consumer.partialDeterministic()
-    //consumer.addAuxVar()
-    //BVSymbol(p.name, bitWidth(p.tpe).toInt)
-    //  println(s"auxVarNum: ${h.auxVarNum}")
-    //  println(s"apNum: ${h.apNum}")
     result.out.toString
   }
 
-  /*
-    def compile(p: Property): PropertyIO = {
-      p match {
-        case PropSeq(s) =>
+  def conditionToChisel(cond: Condition, apMap: Map[HOAParser.AP, String]): PredicateBundle => Bool = {
+    predBundle: PredicateBundle =>
+      cond match {
+        case HOAParser.True            => true.B
+        case HOAParser.Predicate(ap)   => predBundle.elements(apMap(ap))
+        case HOAParser.Not(p)          => !predBundle.elements(apMap(p.ap))
+        case HOAParser.And(conds @ _*) => conds.map(conditionToChisel(_, apMap)(predBundle)).reduce(_ && _)
+        case HOAParser.Or(conds @ _*)  => ???
+      }
+  }
+
+  /** Assuming we're in some state with the given transitions, construct a circuit that tells us the next state we're moving to and
+    * raise the output Bool flag if there exists no transition (i.e. the automata has failed)
+    */
+  def nextStateCircuit(
+    predicateBundle: PredicateBundle,
+    transitions:     Map[Condition, StateId],
+    apMap:           Map[AP, String]
+  ): (UInt, Bool) = {
+    val nextState = WireDefault(0.U)
+    val fail = WireDefault(1.B)
+    for ((condition, nextStateId) <- transitions) {
+      when(conditionToChisel(condition, apMap)(predicateBundle)) {
+        nextState := nextStateId.U
+        fail := 0.B
       }
     }
-   */
+    (nextState, fail)
+  }
+
+  class SpotPropertyAutomaton(preds: Seq[String], hoa: HOAParser.HOA) extends PropertyAutomatonModule {
+    val io = IO(new PropertyAutomatonIO(preds))
+
+    val automataState = RegInit(UInt(log2Ceil(hoa.nStates).W), hoa.initialState.U)
+    val failState = RegInit(Bool(), false.B)
+    io.fail := failState
+
+    for ((stateId, state) <- hoa.states) {
+      when(automataState === stateId.U) {
+        val (nextState, fail) = nextStateCircuit(io.predicates, state.transitions, hoa.aps)
+        automataState := nextState
+        failState := Mux(failState === 1.B, failState, fail) // failState is sticky to true
+      }
+    }
+  }
 }
