@@ -15,23 +15,47 @@ abstract class BasicTestModule extends Module {
 }
 
 class FrontendTests extends AnyFreeSpec with ChiselScalatestTester {
-  "parse a #1 b" in {
+  private def propString(prop: Property): String = backend.serialize(ToIRConverter.toIR(prop)._1.prop)
+
+  "parse a ##1 b" in {
     class Test extends BasicTestModule {
-      a.###(1)(b)
+      val prop = a.###(1)(b)
+      assert(propString(prop) == "p0 ##1 p1")
     }
     test(new Test) { _ => }
   }
 
   "parse a |-> b" in {
     class Test extends BasicTestModule {
-      a |-> b
+      val prop = a |-> b
+      assert(propString(prop) == "p0 |-> p1")
     }
     test(new Test) { _ => }
   }
 
   "parse a |=> b" in {
     class Test extends BasicTestModule {
-      a |=> b
+      val prop = a |=> b
+      assert(propString(prop) == "p0 |=> p1")
+    }
+    test(new Test) { _ => }
+  }
+
+  "parse a |=> a" in {
+    class Test extends BasicTestModule {
+      val prop = a |=> a
+      // it is important that the converter recognizes that the two occurrences of a are the same signal
+      assert(propString(prop) == "p0 |=> p0")
+    }
+    test(new Test) { _ => }
+  }
+
+  "parse a ##1 !a" ignore { // TODO: this does not work since we cannot introspect the chisel...
+    class Test extends BasicTestModule {
+      val prop = a.###(1)(!a)
+      // it is important that the converter recognizes that the two occurrences of a are the same signal and
+      // includes the inversion since this will lead to a more efficient automaton
+      assert(propString(prop) == "p0 ##1 !p0")
     }
     test(new Test) { _ => }
   }

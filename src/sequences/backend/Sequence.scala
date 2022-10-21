@@ -65,8 +65,8 @@ object serialize {
       case SeqConcat(s1, s2)      => apply(s1) + " ##1 " + apply(s2)
       case SeqIntersect(s1, s2)   => apply(s1) + " and " + apply(s2)
       case SeqNot(s1)             => "not" + apply(s1)
-      case SeqImplies(s1, p1)     => apply(s1) + "implies" + apply(p1)
-      case SeqImpliesNext(s1, p1) => apply(s1) + "implies next" + apply(p1)
+      case SeqImplies(s1, p1)     => apply(s1) + " |-> " + apply(p1)
+      case SeqImpliesNext(s1, p1) => apply(s1) + " |=> " + apply(p1)
       case SeqFuse(s1, s2)        => apply(s1) + " ##0 " + apply(s2)
     }
   }

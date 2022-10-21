@@ -10,7 +10,7 @@ import scala.collection.mutable
 
 object toAutomaton {
   def apply(prop: Property, backendImpl: backend.Backend): Bool = {
-    val (info, pred) = new ToIRConverter().toIR(prop)
+    val (info, pred) = ToIRConverter.toIR(prop)
     val mod = backendImpl.compile(info)
     // connect predicates as inputs
     mod.io.predicates.elements.foreach { case (name, input) => input := pred(name) }
@@ -19,7 +19,11 @@ object toAutomaton {
   }
 }
 
-private class ToIRConverter {
+private object ToIRConverter {
+  def toIR(prop: Property): (backend.PropertyInfo, Map[String, Bool]) = new ToIRConverter().toIR(prop)
+}
+
+private class ToIRConverter private () {
   private val pred = mutable.LinkedHashMap[Bool, String]()
 
   def toIR(prop: Property): (backend.PropertyInfo, Map[String, Bool]) = {
@@ -34,9 +38,7 @@ private class ToIRConverter {
   }
 
   private def convert(seq: Sequence): backend.Sequence = seq match {
-    case SeqExpr(predicate) =>
-      val name = pred.getOrElseUpdate(predicate, f"p${pred.size}")
-      backend.SeqPred(backend.SymbolExpr(name))
+    case SeqExpr(predicate)     => backend.SeqPred(convert(predicate))
     case SeqOr(s1, s2)          => backend.SeqOr(convert(s1), convert(s2))
     case SeqConcat(s1, s2)      => backend.SeqConcat(convert(s1), convert(s2))
     case SeqIntersect(s1, s2)   => backend.SeqIntersect(convert(s1), convert(s2))
@@ -44,5 +46,11 @@ private class ToIRConverter {
     case SeqImplies(s1, p1)     => backend.SeqImplies(convert(s1), convert(p1))
     case SeqImpliesNext(s1, p1) => backend.SeqImpliesNext(convert(s1), convert(p1))
     case SeqFuse(s1, s2)        => backend.SeqFuse(convert(s1), convert(s2))
+  }
+
+  private def convert(e: chisel3.Bool): backend.BooleanExpr = {
+    // TODO: is there a way to introspect the chisel to find when an expression is a and/or/not expression?
+    val name = pred.getOrElseUpdate(e, f"p${pred.size}")
+    backend.SymbolExpr(name)
   }
 }
