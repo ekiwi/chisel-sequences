@@ -5,6 +5,7 @@
 package sequences.backend
 
 import chisel3._
+import chisel3.experimental.AutoCloneType
 
 import scala.collection.immutable.{SeqMap, VectorMap}
 
@@ -16,9 +17,8 @@ trait Backend {
 /** Contains a converted property and the name of all predicates used in it. */
 case class PropertyInfo(prop: Property, predicates: Seq[String])
 
-class PredicateBundle(predicates: Seq[String]) extends Record {
-  override val elements:  SeqMap[String, Bool] = VectorMap[String, Bool](predicates.map(p => p -> Input(Bool())): _*)
-  override def cloneType: PredicateBundle.this.type = new PredicateBundle(predicates).asInstanceOf[this.type]
+class PredicateBundle(predicates: Seq[String]) extends Record with AutoCloneType {
+  override val elements: SeqMap[String, Bool] = VectorMap[String, Bool](predicates.map(p => p -> Input(Bool())): _*)
 }
 
 class PropertyAutomatonIO(preds: Seq[String]) extends Bundle {
