@@ -1,3 +1,6 @@
+// Copyright 2022-2023 The Regents of the University of California
+// released under BSD 3-Clause License
+
 package sequences
 
 import chisel3.assert
