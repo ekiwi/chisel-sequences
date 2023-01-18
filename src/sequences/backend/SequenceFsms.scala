@@ -15,11 +15,11 @@ object SequenceFsms extends Backend {
 
   private def compileAlways(pred: Map[String, Bool], p: Property): Bool = {
     val n = runtime(p)
-    val props = Seq.fill(n)(compile(pred, p))
+    val props = Seq.fill(n)(comp(pred, p))
     AssertAlwaysModule(props)
   }
 
-  private def compile(pred: Map[String, Bool], p: Property): PropertyFsmIO = {
+  private def comp(pred: Map[String, Bool], p: Property): PropertyFsmIO = {
     p match {
       case PropSeq(s) => PropSeqModule(comp(pred, s))
     }
@@ -27,8 +27,9 @@ object SequenceFsms extends Backend {
 
   private def comp(pred: Map[String, Bool], s: Sequence): SequenceIO = {
     s match {
-      case SeqPred(predicate) => SeqExprModule(comp(pred, predicate))
-      case SeqConcat(s1, s2)  => SeqConcatModule(comp(pred, s1), comp(pred, s2))
+      case SeqPred(predicate)     => SeqExprModule(comp(pred, predicate))
+      case SeqConcat(s1, s2)      => SeqConcatModule(comp(pred, s1), comp(pred, s2))
+      case SeqImpliesNext(s1, p1) => SeqImpliesNextModule(comp(pred, s1), comp(pred, p1))
     }
   }
 
@@ -49,10 +50,11 @@ object SequenceFsms extends Backend {
   /** calculates an upper bound for the sequence runtime in cycles */
   private def runtime(s: Sequence): Int = {
     s match {
-      case SeqPred(_)        => 1
-      case SeqOr(s1, s2)     => runtime(s1).max(runtime(s2))
-      case SeqFuse(s1, s2)   => runtime(s1) + runtime(s2) - 1
-      case SeqConcat(s1, s2) => runtime(s1) + runtime(s2)
+      case SeqPred(_)             => 1
+      case SeqOr(s1, s2)          => runtime(s1).max(runtime(s2))
+      case SeqFuse(s1, s2)        => runtime(s1) + runtime(s2) - 1
+      case SeqConcat(s1, s2)      => runtime(s1) + runtime(s2)
+      case SeqImpliesNext(s1, p1) => runtime(s1) + runtime(p1) // TODO: is this correct?
     }
   }
 
@@ -158,6 +160,10 @@ object SeqConcatModule {
     mod.seq2 <> s2
     mod.io
   }
+}
+
+object SeqImpliesNextModule {
+  def apply(o: SequenceIO, o1: PropertyFsmIO): SequenceIO = ???
 }
 
 /** converts a sequence I/O into a property I/O */

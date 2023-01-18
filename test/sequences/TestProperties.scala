@@ -37,6 +37,16 @@ object TestProperties {
         Fail(at = 1, a = "10", b = "XX"),
         Fail(at = 1, a = "1X", b = "X0")
       )
-    )
+    ),
+    TestProperty(
+      "a |=> b",
+      (a, b) => a |=> b,
+      Seq(
+        Pass(a = "1x", b = "x1"),
+        Pass(a = "0x", b = "x0"),
+        Pass(a = "010x", b = "xx1x"),
+        Fail(at = 1, a = "1x", b = "X0")
+      )
+    ).markSkip
   )
 }

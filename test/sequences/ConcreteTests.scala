@@ -24,17 +24,34 @@ abstract class ConcreteTests(back: backend.Backend, debug: Boolean = false)
 
     prop.testInputs.zipWithIndex.foreach { case (in, ii) =>
       val status = if (in.failAt >= 0) s"fail at ${in.failAt}" else "pass"
-      it should s"$status input #$ii" in {
-        test(new PropertyModule(prop.prop, back)).withAnnotations(annos)(runTest(_, in))
+      if (prop.skip) {
+        ignore should s"$status input #$ii" in { runTest(prop, in) }
+      } else {
+        it should s"$status input #$ii" in { runTest(prop, in) }
       }
     }
   }
 
-  private def runTest(dut: PropertyModule, ii: TestInput): Unit = {
+  private def runTest(prop: TestProperty, in: TestInput): Unit = {
+    val rnd = new scala.util.Random()
+    val unknowns = TestInput.countUnknowns(in)
+    test(new PropertyModule(prop.prop, back)).withAnnotations(annos) { dut =>
+      // we re-run the test once for every unknown in order to explore more random values
+      (0 to unknowns).foreach { _ =>
+        runTest(dut, in, rnd)
+      }
+    }
+  }
+
+  private def runTest(dut: PropertyModule, ii: TestInput, rnd: scala.util.Random): Unit = {
     val dutInputs = Seq(dut.io.a, dut.io.b, dut.io.c, dut.io.d)
     def step(): Unit = dut.clock.step()
+    // reset circuit
+    dut.reset.poke(true.B)
+    step()
+    dut.reset.poke(false.B)
+
     val inputValues = TestInput.getPaddedInputs(ii).transpose
-    val rnd = new scala.util.Random()
     inputValues.zipWithIndex.foreach { case (stepValues, stepId) =>
       // apply inputs for step
       dutInputs.zip(stepValues).foreach {
